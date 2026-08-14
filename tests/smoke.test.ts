@@ -35,4 +35,17 @@ describe('Tartan Tickets smoke checks', () => {
         const events: unknown = await response.json();
         expect(Array.isArray(events)).toBe(true);
     });
+
+    it('rejects the token-shaped authentication test fixture', async () => {
+        const fixtureToken =
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
+            'eyJzdWIiOiJodzMtaGFybWxlc3MtZml4dHVyZSIsInJvbGUiOiJhZG1pbiJ9.' +
+            'c3ludGhldGljLXRlc3Qtc2lnbmF0dXJl';
+        const url = applicationUrl('/api/admin/events');
+        const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${fixtureToken}` },
+        });
+
+        expect(response.status).toBe(401);
+    });
 });
