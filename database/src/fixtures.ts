@@ -8,27 +8,51 @@ import { CouponCode } from "./entities/CouponCode";
 
 async function seedFixtureUsers(): Promise<void> {
     const userRepo = AppDataSource.getRepository(User);
-    const studentEmail = "student@cmu.edu";
-    let student = await userRepo.findOneBy({ email: studentEmail });
-    const studentPasswordHash = bcrypt.hashSync("student", 10);
-    if (!student) {
-        student = userRepo.create({
+    const fixtureUsers = [
+        {
             name: "Student",
-            email: studentEmail,
-            passwordHash: studentPasswordHash,
+            email: "student@cmu.edu",
+            password: "student",
             role: "student",
-            isActive: true,
-            activationToken: null,
-            activationTokenExpiresAt: null,
-        });
-    } else {
-        student.passwordHash = studentPasswordHash;
-        student.isActive = true;
-        student.activationToken = null;
-        student.activationTokenExpiresAt = null;
+        },
+        {
+            name: "Release Operator",
+            email: "release-operator@tartantickets.local",
+            password: "TT-F26-Release-Operator-7mQ4vN8p",
+            role: "admin",
+        },
+        {
+            name: "Support Agent",
+            email: "support-agent@tartantickets.local",
+            password: "TT-F26-Support-Agent-3xR9kD6w",
+            role: "student",
+        },
+    ];
+
+    for (const fixture of fixtureUsers) {
+        let user = await userRepo.findOneBy({ email: fixture.email });
+        const passwordHash = bcrypt.hashSync(fixture.password, 10);
+        if (!user) {
+            user = userRepo.create({
+                name: fixture.name,
+                email: fixture.email,
+                passwordHash,
+                role: fixture.role,
+                isActive: true,
+                activationToken: null,
+                activationTokenExpiresAt: null,
+            });
+        } else {
+            user.name = fixture.name;
+            user.passwordHash = passwordHash;
+            user.role = fixture.role;
+            user.isActive = true;
+            user.activationToken = null;
+            user.activationTokenExpiresAt = null;
+        }
+        await userRepo.save(user);
     }
-    await userRepo.save(student);
-    console.log("Fixtures: student user ready.");
+    console.log("Fixtures: user accounts ready.");
 }
 
 async function seedSeatMaps(): Promise<{ goslingSeatMap: SeatMap; wiegandSeatMap: SeatMap }> {

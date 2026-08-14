@@ -24,7 +24,7 @@ const PAYMENT_SERVICE_URL = process.env.PAYMENT_SERVICE_URL || 'http://payment-s
 app.use(express.json({ limit: '10mb' }));
 app.use(cors());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'tartan-f26-dev-signing-key';
 
 // Helper to extract user from Authorization header
 const getUserIdFromAuth = (req: express.Request): number | null => {
