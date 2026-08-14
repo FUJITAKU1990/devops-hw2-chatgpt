@@ -12,31 +12,30 @@ async function seedFixtureUsers(): Promise<void> {
         {
             name: "Student",
             email: "student@cmu.edu",
-            password: "student",
+            passwordHash: bcrypt.hashSync("student", 10),
             role: "student",
         },
         {
             name: "Release Operator",
             email: "release-operator@tartantickets.local",
-            password: "TT-F26-Release-Operator-7mQ4vN8p",
+            passwordHash: "$2a$10$XArqK0m5SS7h3WeFGUlh7.ZjQzeftI2do2QirbM2CIqoQGTlp0z6a",
             role: "admin",
         },
         {
             name: "Support Agent",
             email: "support-agent@tartantickets.local",
-            password: "TT-F26-Support-Agent-3xR9kD6w",
+            passwordHash: "$2a$10$o2QVNXpgIP7DjJc3Bdzc9OjnIGSBZ0Z4d5mbEfmxAqDAeN6bPxqQe",
             role: "student",
         },
     ];
 
     for (const fixture of fixtureUsers) {
         let user = await userRepo.findOneBy({ email: fixture.email });
-        const passwordHash = bcrypt.hashSync(fixture.password, 10);
         if (!user) {
             user = userRepo.create({
                 name: fixture.name,
                 email: fixture.email,
-                passwordHash,
+                passwordHash: fixture.passwordHash,
                 role: fixture.role,
                 isActive: true,
                 activationToken: null,
@@ -44,7 +43,7 @@ async function seedFixtureUsers(): Promise<void> {
             });
         } else {
             user.name = fixture.name;
-            user.passwordHash = passwordHash;
+            user.passwordHash = fixture.passwordHash;
             user.role = fixture.role;
             user.isActive = true;
             user.activationToken = null;
