@@ -1,0 +1,17 @@
+{
+  "name": "@tartan/mail",
+  "version": "1.0.0",
+  "description": "Shared email utilities for TartanTickets services",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.16"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.17",
+    "@types/node": "^20.11.20",
+    "typescript": "^5.3.3"
+  }
+}

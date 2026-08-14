@@ -1,0 +1,44 @@
+name: HW1 defect report
+description: Report a reproducible, consequential defect for HW1 Requirement 3.
+title: "[HW1 defect]: "
+labels: ["hw1-defect"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report one defect that is still observable at your checkpoint commit.
+        Describe observed behavior, not a suspected implementation fault.
+        Do not include credentials, tokens, personal data, or generated runtime data anywhere in this report.
+        A root-cause diagnosis and a proposed repair are not required at the checkpoint.
+
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What's wrong and why it matters
+      description: What should happen, what happens instead, and who or what does this affect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide steps for reproducing the issue, including any starting state and the exact non-sensitive inputs someone else would need.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and reasoning
+      description: Provide concise evidence, then explain why it demonstrates a defect rather than a setup problem, user mistake, cosmetic preference, or feature request.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: How would someone know this is fixed? Not just for your example but in general.
+    validations:
+      required: true

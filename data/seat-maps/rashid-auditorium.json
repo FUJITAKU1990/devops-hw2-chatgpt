@@ -1,0 +1,19 @@
+{
+    "name": "Rashid Auditorium",
+    "config": {
+      "seatMapId": "rashid-v1",
+      "sections": [
+        {
+          "id": "MAIN",
+          "label": "Main Hall",
+          "rows": 14,
+          "cols": 18,
+          "aisles": [9],
+          "rowLabelStart": "A",
+          "colLabelStart": 1,
+          "accessibleSeats": ["N1", "N2", "N17", "N18"]
+        }
+      ]
+    }
+  }
+  

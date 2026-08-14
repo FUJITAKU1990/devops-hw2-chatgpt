@@ -1,0 +1,17 @@
+{
+  "name": "tartan-tickets",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": ["frontend", "services/*", "database", "packages/*"],
+  "scripts": {
+    "test": "npm run test:workspaces && npm run test:system",
+    "test:workspaces": "npm run test --workspaces --if-present",
+    "test:system": "vitest run --config vitest.system.config.ts",
+    "install:all": "npm install",
+    "build:database": "npm run build -w database",
+    "build:mail": "npm run build -w @tartan/mail"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}

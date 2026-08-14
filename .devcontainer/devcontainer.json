@@ -1,0 +1,32 @@
+{
+	"name": "Tartan Tickets Tooling",
+	"build": {
+	    "dockerfile": "Dockerfile"
+	},
+
+	// Use the devcontainer for editing, tests, and CLI tools only.
+	// Runtime should come from docker compose, not processes started inside this container.
+	"portsAttributes": {
+		"8025": {
+			"label": "Mailpit UI",
+			"onAutoForward": "ignore"
+		}
+	},
+
+	"features": {
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+	},
+
+	"postCreateCommand": "cp -n .env.example .env 2>/dev/null || true && mkdir -p ~/.docker && echo '{}' > ~/.docker/config.json && npm install",
+
+	"customizations": {
+        "vscode": {
+            "extensions": [
+				"ms-vsliveshare.vsliveshare",
+				"mermaidchart.vscode-mermaid-chart",
+				"mtxr.sqltools",
+				"mtxr.sqltools-driver-pg"
+            ]
+        }
+	}
+}

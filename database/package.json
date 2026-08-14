@@ -1,0 +1,32 @@
+{
+  "name": "@tartan/db",
+  "version": "1.0.0",
+  "description": "Shared database entities and migrations for TartanTickets",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d ./src/data-source.ts",
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d ./src/data-source.ts",
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d ./src/data-source.ts",
+    "seed": "ts-node src/seed.ts",
+    "seed:bootstrap": "ts-node src/bootstrap.ts",
+    "seed:fixtures": "ts-node src/fixtures.ts",
+    "seed:all": "ts-node src/seed.ts",
+    "start": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^17.2.4",
+    "pg": "^8.11.3",
+    "reflect-metadata": "^0.2.1",
+    "typeorm": "^0.3.20"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.2",
+    "@types/node": "^20.11.20",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

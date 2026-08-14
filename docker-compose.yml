@@ -1,0 +1,145 @@
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    environment:
+      MP_UI_AUTH: "${MP_UI_AUTH:-admin:admin}"
+      MP_WEBROOT: /mailpit/
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      MP_DATABASE: /data/mailpit.db
+    volumes:
+      - mailpit-data:/data
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tartan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-tartantickets}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
+
+  migrator:
+    build:
+      context: .
+      dockerfile: ./services/auth-service/Dockerfile
+    command: sh -c "cd ../../database && npm run migration:run && npm run seed:all"
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-tartan}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-tartantickets}
+      TARTAN_ADMIN_EMAIL: ${TARTAN_ADMIN_EMAIL:-admin@cmu.edu}
+      TARTAN_ADMIN_PASSWORD: ${TARTAN_ADMIN_PASSWORD:-admin}
+      TARTAN_ADMIN_NAME: ${TARTAN_ADMIN_NAME:-Admin}
+
+  payment-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${PAYMENT_DB_USER:-tartanpay}
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:-tartanpay-dev-password}
+      POSTGRES_DB: ${PAYMENT_DB_NAME:-tartanpay}
+    volumes:
+      - payment-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
+
+  payment-service:
+    image: ${PAYMENT_SERVICE_IMAGE:-ghcr.io/cmu-devops/tartanpay:latest}
+    environment:
+      PORT: 3003
+      DATABASE_URL: postgres://${PAYMENT_DB_USER:-tartanpay}:${PAYMENT_DB_PASSWORD:-tartanpay-dev-password}@payment-db:5432/${PAYMENT_DB_NAME:-tartanpay}
+      TARTANPAY_API_KEY: ${TARTANPAY_API_KEY:-tp_sk_test_default_dev_key_000000000000}
+      TARTANPAY_ADMIN_TOKEN: ${TARTANPAY_ADMIN_TOKEN:-admin-secret}
+      TARTANPAY_LOG_SECRETS: ${TARTANPAY_LOG_SECRETS:-true}
+    depends_on:
+      payment-db:
+        condition: service_healthy
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: ./services/auth-service/Dockerfile
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgres://${POSTGRES_USER:-tartan}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-tartantickets}
+      JWT_SECRET: ${JWT_SECRET:-change_me_to_a_long_random_string}
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM: ${SMTP_FROM:-noreply@tartantickets.cmu.edu}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      migrator:
+        condition: service_completed_successfully
+
+  ticket-service:
+    build:
+      context: .
+      dockerfile: ./services/ticket-service/Dockerfile
+    environment:
+      PORT: 3002
+      DATABASE_URL: postgres://${POSTGRES_USER:-tartan}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-tartantickets}
+      PAYMENT_SERVICE_URL: http://payment-service:3003
+      TARTANPAY_API_KEY: ${TARTANPAY_API_KEY:-tp_sk_test_default_dev_key_000000000000}
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM: ${SMTP_FROM:-noreply@tartantickets.cmu.edu}
+      JWT_SECRET: ${JWT_SECRET:-change_me_to_a_long_random_string}
+    depends_on:
+      db:
+        condition: service_healthy
+      payment-service:
+        condition: service_started
+      mailpit:
+        condition: service_started
+      migrator:
+        condition: service_completed_successfully
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: ./services/api-gateway/Dockerfile
+    environment:
+      PORT: 3000
+      AUTH_SERVICE_URL: http://auth-service:3001
+      TICKET_SERVICE_URL: http://ticket-service:3002
+      PAYMENT_SERVICE_URL: http://payment-service:3003
+    depends_on:
+      auth-service:
+        condition: service_started
+      ticket-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      api-gateway:
+        condition: service_started
+
+volumes:
+  postgres-data:
+  payment-postgres-data:
+  mailpit-data:

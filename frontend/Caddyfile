@@ -1,0 +1,31 @@
+:80 {
+    encode gzip
+
+    # Proxy all API traffic to the backend gateway
+    handle /api/* {
+        reverse_proxy api-gateway:3000
+    }
+
+    # Proxy Mailpit traffic to the Mailpit UI
+    redir /mailpit /mailpit/
+    handle_path /mailpit/* {
+        rewrite * /mailpit{path}
+        reverse_proxy mailpit:8025 {
+            header_up Host {host}
+        }
+    }
+
+    # Proxy TartanPay traffic to the admin UI
+    redir /tartanpay /tartanpay/
+    handle_path /tartanpay/* {
+        rewrite * /dashboard{path}
+        reverse_proxy payment-service:3003
+    }
+
+    # Serve the SPA; fall back to index.html for client-side routes
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}
