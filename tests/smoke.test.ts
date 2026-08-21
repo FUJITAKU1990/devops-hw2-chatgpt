@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 const baseUrl = new URL(
-    process.env.TARTAN_BASE_URL ?? 'http://localhost:8080',
+    process.env.TARTAN_BASE_URL ?? 'http://localhost:8636',
 );
 
 function applicationUrl(path: string): URL {

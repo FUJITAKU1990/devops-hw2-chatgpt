@@ -28,8 +28,8 @@ The Compose file is `docker-compose.yml`.
 
 3. Open the app in your browser:
 
-   - Frontend: `http://localhost:8080`
-   - Mailpit: `http://localhost:8080/mailpit/`
+   - Frontend: `http://localhost:8636`
+   - Mailpit: `http://localhost:8636/mailpit/`
 
 4. Stop the stack when you are done:
 
@@ -49,9 +49,14 @@ Once the local stack is running, these are the main entry points:
 
 | Component | URL | Notes |
 |---|---|---|
-| Frontend / ingress | http://localhost:8080 | The only host-published port; it proxies application dependencies internally |
-| Mailpit | http://localhost:8080/mailpit/ | Activation and other outgoing email, through the frontend ingress |
-| TartanPay Dashboard | http://localhost:8080/tartanpay/ | Fake payment provider admin view, through the frontend ingress |
+| Frontend / ingress | http://localhost:8636 | The only host-published port; it proxies application dependencies internally |
+| Mailpit | http://localhost:8636/mailpit/ | Activation and other outgoing email, through the frontend ingress |
+| TartanPay Dashboard | http://localhost:8636/tartanpay/ | Fake payment provider admin view, through the frontend ingress |
+
+These URLs are for a browser on your host machine.
+The Dev Container is a separate container, so `localhost` there refers to the Dev Container itself, not to the running application.
+From a terminal inside the Dev Container, reach the application at **http://host.docker.internal:8636** instead.
+`TARTAN_BASE_URL` is already set to that value for you, so `./scripts/check` and the system tests work without any extra setup.
 
 ## Activation Emails
 
@@ -59,7 +64,7 @@ New users must activate their account before they can sign in. After registering
 
 **Viewing activation emails:**
 
-- **Local development:** Open **http://localhost:8080/mailpit/** to open Mailpit. All outgoing mail (including activation emails) appears there; click a message to see it and use the activation link.
+- **Local development:** Open **http://localhost:8636/mailpit/** to open Mailpit. All outgoing mail (including activation emails) appears there; click a message to see it and use the activation link.
 - **Production:** Open **/mailpit** on your deployed site and sign in with the Mailpit password provided to you. Do not share this password.
 
 Because viewing activation emails requires access to Mailpit, only you and the TAs can fully interact with your site (register, activate, and sign in). If you want other people to use your site, you need to open Mailpit, find their activation email, and click the activation link for them. You should not share your Mailpit credentials.
@@ -72,7 +77,8 @@ With the Compose application already running, run the cumulative local checks fr
 ./scripts/check
 ```
 
-The command uses `TARTAN_BASE_URL`, defaulting to `http://localhost:8080`.
+The command uses `TARTAN_BASE_URL`, which the Dev Container sets to `http://host.docker.internal:8636`.
+It falls back to `http://localhost:8636` when the variable is unset, which is the right value when you run the checks from your host rather than the Dev Container.
 Starter system tests and guidance for extending them live in [`tests/`](tests/).
 
 ## Where To Look Next

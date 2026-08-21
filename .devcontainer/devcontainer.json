@@ -6,11 +6,18 @@
 
 	// Use the devcontainer for editing, tests, and CLI tools only.
 	// Runtime should come from docker compose, not processes started inside this container.
-	"portsAttributes": {
-		"8025": {
-			"label": "Mailpit UI",
-			"onAutoForward": "ignore"
-		}
+
+	// Compose publishes the application on the host, which is a separate
+	// network namespace from this container: http://localhost:8636 resolves to
+	// this container and will not reach it. Reach the host gateway instead.
+	// --add-host supplies the name on native Linux Docker, which does not
+	// provide it automatically; Docker Desktop already resolves it.
+	"runArgs": ["--add-host=host.docker.internal:host-gateway"],
+
+	// Default target for ./scripts/check and the system tests. A browser on
+	// the host still uses http://localhost:8636.
+	"remoteEnv": {
+		"TARTAN_BASE_URL": "http://host.docker.internal:8636"
 	},
 
 	"features": {

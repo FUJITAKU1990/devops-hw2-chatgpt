@@ -6,7 +6,7 @@
 # command must:
 #   - run from the repository root inside the Dev Container;
 #   - exercise the application at TARTAN_BASE_URL, which defaults to
-#     http://localhost:8080;
+#     http://localhost:8636;
 #   - assume the Compose application is already running; do not build, start,
 #     stop, or reset it;
 #   - include the inherited tests and every test you retain or add;
@@ -18,6 +18,6 @@
 
 set -euo pipefail
 
-export TARTAN_BASE_URL="${TARTAN_BASE_URL:-http://localhost:8080}"
+export TARTAN_BASE_URL="${TARTAN_BASE_URL:-http://localhost:8636}"
 
 npm test

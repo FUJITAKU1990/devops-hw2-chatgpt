@@ -78,7 +78,7 @@ services:
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       SMTP_FROM: ${SMTP_FROM:-noreply@tartantickets.cmu.edu}
-      APP_URL: ${APP_URL:-http://localhost:8080}
+      APP_URL: ${APP_URL:-http://localhost:8636}
     depends_on:
       db:
         condition: service_healthy
@@ -134,7 +134,9 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-}
     ports:
-      - "127.0.0.1:8080:80"
+      # Published on all interfaces so the Dev Container can reach the application through the host gateway.
+      # Binding to 127.0.0.1 here would be reachable only from the host itself.
+      - "8636:80"
     depends_on:
       api-gateway:
         condition: service_started
