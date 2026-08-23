@@ -1,5 +1,5 @@
 name: HW1 defect report
-description: Report a reproducible, consequential defect for HW1 Requirement 3.
+description: Report one of three reproducible, consequential defects for HW1.
 title: "[HW1 defect]: "
 labels: ["hw1-defect"]
 body:
@@ -10,6 +10,8 @@ body:
         Describe observed behavior, not a suspected implementation fault.
         Do not include credentials, tokens, personal data, or generated runtime data anywhere in this report.
         A root-cause diagnosis and a proposed repair are not required at the checkpoint.
+        When the report is ready, add a comment that says `@cmu-devops/course-staff Ready for HW1 review.`
+        Do not begin the repair until staff approve the report and you have created your Checkpoint A commit.
 
   - type: textarea
     id: behavior
