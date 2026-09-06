@@ -8,6 +8,7 @@ import cron from 'node-cron';
 import { In, IsNull } from 'typeorm';
 import { AppDataSource, Event, Ticket, Order, User, TicketType, SeatMap, SupportReport, CouponCode } from '@tartan/db';
 import { sendOrderConfirmationEmail, sendPaymentReceiptEmail, sendCancellationEmail } from '@tartan/mail';
+import { isReservationExpired } from './reservationExpiry';
 
 // Generate human-readable record locator (e.g. TARTAN-A1B2C3)
 function generateRecordLocator(): string {
@@ -21,6 +22,7 @@ function generateRecordLocator(): string {
 
 const app = express();
 const PAYMENT_SERVICE_URL = process.env.PAYMENT_SERVICE_URL || 'http://payment-service:3003';
+
 app.use(express.json({ limit: '10mb' }));
 app.use(cors());
 
@@ -290,9 +292,14 @@ app.get('/events/:id/seats', async (req, res) => {
 
         const availability: Record<string, string> = {};
         for (const t of tickets) {
-            if (t.seatNumber) {
-                availability[t.seatNumber] = t.status === 'booked' ? 'sold' : 'unavailable';
+            if (!t.seatNumber) {
+                continue;
             }
+            if (t.status === 'reserved' && isReservationExpired(t)) {
+                continue;
+            }
+            availability[t.seatNumber] =
+                t.status === 'booked' ? 'sold' : 'unavailable';
         }
 
         res.json({
@@ -335,10 +342,14 @@ app.post('/events/:id/seats/:seat/reserve', async (req, res) => {
             }
         });
         if (existing) {
-            return res.status(409).json({
-                error: 'Seat not available',
-                seat: seatId
-            });
+            if (existing.status === 'reserved' && isReservationExpired(existing)) {
+                await ticketRepo.delete(existing.id);
+            } else {
+                return res.status(409).json({
+                    error: 'Seat not available',
+                    seat: seatId
+                });
+            }
         }
 
         const ticket = ticketRepo.create({
@@ -529,6 +540,19 @@ app.post('/events/:id/checkout', async (req, res) => {
                     status: 'reserved'
                 }
             });
+
+            const expiredTickets = tickets.filter(isReservationExpired);
+
+            if (expiredTickets.length > 0) {
+                for (const ticket of expiredTickets) {
+                    await ticketRepo.delete(ticket.id);
+                }
+
+                return res.status(400).json({
+                    error: 'Some seat reservations have expired',
+                    expired: expiredTickets.map((ticket) => ticket.seatNumber)
+                });
+            }
 
             if (tickets.length !== seatIds.length) {
                 const foundSeats = new Set(tickets.map(t => t.seatNumber));
