@@ -446,9 +446,7 @@ app.post('/events/:id/checkout', async (req, res) => {
         const {
             seatIds,
             tickets: gaTickets,
-            totalPriceCents,
             couponCode,
-            discountAmountCents,
             cardNumber,
             cardExpMonth,
             cardExpYear,
@@ -457,7 +455,7 @@ app.post('/events/:id/checkout', async (req, res) => {
         } = req.body as {
             seatIds: string[];
             tickets?: Record<string, number>;
-            totalPriceCents: number;
+            totalPriceCents?: number;
             couponCode?: string;
             discountAmountCents?: number;
             cardNumber?: string;
@@ -478,11 +476,20 @@ app.post('/events/:id/checkout', async (req, res) => {
         }
 
         const ticketRepo = AppDataSource.getRepository(Ticket);
+        const ticketTypeRepo = AppDataSource.getRepository(TicketType);
 
         let tickets: Ticket[];
+        let authoritativeCartSummary: CouponCartSummary;
 
         if (isGA) {
+            // Calculate the authoritative GA subtotal from TicketType.priceCents.
+            authoritativeCartSummary = await buildCouponCartSummary(
+                eventId,
+                gaTickets
+            );
+
             const newTickets: Ticket[] = [];
+
             for (const [, qty] of Object.entries(gaTickets!)) {
                 for (let i = 0; i < qty; i++) {
                     newTickets.push(ticketRepo.create({
@@ -493,8 +500,10 @@ app.post('/events/:id/checkout', async (req, res) => {
                     }));
                 }
             }
+
             tickets = await ticketRepo.save(newTickets);
         } else {
+            // Verify that the requested seats are actually reserved by this user.
             tickets = await ticketRepo.find({
                 where: {
                     eventId,
@@ -507,64 +516,127 @@ app.post('/events/:id/checkout', async (req, res) => {
             if (tickets.length !== seatIds.length) {
                 const foundSeats = new Set(tickets.map(t => t.seatNumber));
                 const missing = seatIds.filter(id => !foundSeats.has(id));
+
                 return res.status(400).json({
                     error: 'Some seats are no longer reserved',
                     missing
                 });
             }
+
+            // Resolve the authoritative Reserved Seating price from the event's
+            // TicketType instead of trusting a total supplied by the client.
+            const reservedTicketTypes = await ticketTypeRepo.find({
+                where: {
+                    eventId,
+                    availabilityModel: 'RESERVED_SEATS'
+                }
+            });
+
+            if (reservedTicketTypes.length === 0) {
+                return res.status(400).json({
+                    error: 'Reserved seating ticket type not found'
+                });
+            }
+
+            if (reservedTicketTypes.length > 1) {
+                return res.status(400).json({
+                    error: 'Unable to determine reserved seating ticket type'
+                });
+            }
+
+            const reservedTicketType = reservedTicketTypes[0];
+            const subtotalCents =
+                reservedTicketType.priceCents * seatIds.length;
+
+            authoritativeCartSummary = {
+                subtotalCents,
+                lineItems: [
+                    {
+                        ticketTypeId: reservedTicketType.id,
+                        quantity: seatIds.length,
+                        lineTotalCents: subtotalCents
+                    }
+                ]
+            };
         }
 
-        const requestedSubtotalCents = Math.max(0, Math.round(Number(totalPriceCents) || 0));
-        const cartSummary = await buildCouponCartSummary(eventId, gaTickets);
+        // The server-calculated subtotal is authoritative.
+        // Client-supplied totalPriceCents is intentionally ignored.
+        const authoritativeSubtotalCents =
+            authoritativeCartSummary.subtotalCents;
+
         const normalizedCouponCode = normalizeCouponCode(couponCode);
         let appliedCoupon: CouponCode | null = null;
         let appliedDiscountCents = 0;
 
         if (normalizedCouponCode) {
-            appliedCoupon = await findCouponForEvent(eventId, normalizedCouponCode);
+            appliedCoupon = await findCouponForEvent(
+                eventId,
+                normalizedCouponCode
+            );
+
             if (!appliedCoupon) {
                 return res.status(400).json({ error: 'Coupon not found' });
             }
 
-            const evaluation = evaluateCoupon(appliedCoupon, {
-                subtotalCents: cartSummary.subtotalCents || requestedSubtotalCents,
-                lineItems: cartSummary.lineItems,
-            });
+            const evaluation = evaluateCoupon(
+                appliedCoupon,
+                authoritativeCartSummary
+            );
 
             if (!evaluation.valid) {
-                return res.status(400).json({ error: evaluation.reason || 'Coupon does not apply' });
+                return res.status(400).json({
+                    error: evaluation.reason || 'Coupon does not apply'
+                });
             }
 
-            if (typeof discountAmountCents === 'number' && discountAmountCents > 0) {
-                appliedDiscountCents = Math.min(requestedSubtotalCents, Math.max(0, Math.round(discountAmountCents)));
-            } else {
-                appliedDiscountCents = Math.min(requestedSubtotalCents, evaluation.discountAmountCents);
-            }
+            // Only the server-calculated coupon discount is trusted.
+            // Client-supplied discountAmountCents is intentionally ignored.
+            appliedDiscountCents = Math.min(
+                authoritativeSubtotalCents,
+                evaluation.discountAmountCents
+            );
         }
 
-        const totalAmount = Math.max(0, requestedSubtotalCents - appliedDiscountCents);
+        const totalAmount = Math.max(
+            0,
+            authoritativeSubtotalCents - appliedDiscountCents
+        );
 
         // --- TartanPay two-phase payment flow ---
         const userRepo = AppDataSource.getRepository(User);
         const user = await userRepo.findOne({ where: { id: userId } });
+
         if (!user) {
             return res.status(401).json({ error: 'User not found' });
         }
 
         // 1. Ensure a TartanPay customer exists (idempotent by email)
-        const custRes = await axios.post(`${PAYMENT_SERVICE_URL}/v1/customers`,
-            { email: user.email, name: user.name },
+        const custRes = await axios.post(
+            `${PAYMENT_SERVICE_URL}/v1/customers`,
+            {
+                email: user.email,
+                name: user.name
+            },
             tartanPayHeaders()
         );
+
         const customerId = custRes.data.id;
 
-        // 2. Create PaymentIntent
-        const intentRes = await axios.post(`${PAYMENT_SERVICE_URL}/v1/payment_intents`, {
-            amount: totalAmount,
-            currency: 'usd',
-            customer: customerId,
-            metadata: { event_id: eventId, user_id: userId },
-        }, tartanPayHeaders());
+        // 2. Create PaymentIntent using the authoritative server-side amount.
+        const intentRes = await axios.post(
+            `${PAYMENT_SERVICE_URL}/v1/payment_intents`,
+            {
+                amount: totalAmount,
+                currency: 'usd',
+                customer: customerId,
+                metadata: {
+                    event_id: eventId,
+                    user_id: userId
+                }
+            },
+            tartanPayHeaders()
+        );
 
         // 3. Confirm with card details
         const confirmBody: any = {
@@ -573,11 +645,14 @@ app.post('/events/:id/checkout', async (req, res) => {
                     number: cardNumber || '4242424242424242',
                     exp_month: cardExpMonth || 12,
                     exp_year: cardExpYear || 2030,
-                    cvc: cardCvc || '123',
-                },
-            },
+                    cvc: cardCvc || '123'
+                }
+            }
         };
-        if (saveCard) confirmBody.save_payment_method = true;
+
+        if (saveCard) {
+            confirmBody.save_payment_method = true;
+        }
 
         const confirmRes = await axios.post(
             `${PAYMENT_SERVICE_URL}/v1/payment_intents/${intentRes.data.id}/confirm`,
@@ -589,25 +664,39 @@ app.post('/events/:id/checkout', async (req, res) => {
             return res.status(402).json({
                 error: 'Payment failed',
                 failure_code: confirmRes.data.failure_code,
-                failure_message: confirmRes.data.failure_message,
+                failure_message: confirmRes.data.failure_message
             });
         }
 
         const transactionId = intentRes.data.id;
-        const cardLast4 = cardNumber ? cardNumber.slice(-4) : undefined;
-        const cardBrand = cardNumber?.startsWith('4') ? 'visa'
-            : cardNumber?.startsWith('5') ? 'mastercard'
-            : cardNumber?.startsWith('3') ? 'amex' : 'card';
+        const cardLast4 = cardNumber
+            ? cardNumber.slice(-4)
+            : undefined;
+
+        const cardBrand = cardNumber?.startsWith('4')
+            ? 'visa'
+            : cardNumber?.startsWith('5')
+                ? 'mastercard'
+                : cardNumber?.startsWith('3')
+                    ? 'amex'
+                    : 'card';
 
         // Create Order record in database
         const orderRepo = AppDataSource.getRepository(Order);
         const eventRepo = AppDataSource.getRepository(Event);
-        const event = await eventRepo.findOne({ where: { id: eventId } });
+
+        const event = await eventRepo.findOne({
+            where: { id: eventId }
+        });
+
         if (!event) {
-            return res.status(404).json({ error: 'Event not found' });
+            return res.status(404).json({
+                error: 'Event not found'
+            });
         }
 
         let recordLocator = generateRecordLocator();
+
         while (await orderRepo.findOneBy({ recordLocator })) {
             recordLocator = generateRecordLocator();
         }
@@ -621,53 +710,82 @@ app.post('/events/:id/checkout', async (req, res) => {
             couponCode: appliedCoupon?.code || null,
             discountAmountCents: appliedDiscountCents,
             status: 'confirmed',
-            fulfillmentStatus: 'pending',
+            fulfillmentStatus: 'pending'
         });
+
         await orderRepo.save(order);
 
         await ticketRepo.update(
-            { id: In(tickets.map(t => t.id)) },
-            { status: 'booked', orderId: order.id }
+            {
+                id: In(tickets.map(t => t.id))
+            },
+            {
+                status: 'booked',
+                orderId: order.id
+            }
         );
+
         if (appliedCoupon) {
-            await AppDataSource.getRepository(CouponCode).increment({ id: appliedCoupon.id }, 'currentRedemptions', 1);
+            await AppDataSource
+                .getRepository(CouponCode)
+                .increment(
+                    { id: appliedCoupon.id },
+                    'currentRedemptions',
+                    1
+                );
         }
 
         if (user) {
-            const seatNumbers = tickets.map(t => t.seatNumber).filter(Boolean) as string[];
-            const orderConfirmationSent = await sendOrderConfirmationEmail(user.email, {
-                name: user.name,
-                recordLocator: order.recordLocator,
-                eventName: event.name,
-                eventDate: event.date?.toISOString() ?? 'TBD',
-                eventLocation: event.location ?? 'TBD',
-                ticketCount: tickets.length,
-                seatNumbers,
-                totalAmountCents: totalAmount,
-            });
+            const seatNumbers = tickets
+                .map(t => t.seatNumber)
+                .filter(Boolean) as string[];
+
+            const orderConfirmationSent =
+                await sendOrderConfirmationEmail(
+                    user.email,
+                    {
+                        name: user.name,
+                        recordLocator: order.recordLocator,
+                        eventName: event.name,
+                        eventDate: event.date?.toISOString() ?? 'TBD',
+                        eventLocation: event.location ?? 'TBD',
+                        ticketCount: tickets.length,
+                        seatNumbers,
+                        totalAmountCents: totalAmount
+                    }
+                );
+
             let receiptSent = totalAmount === 0;
+
             if (transactionId && totalAmount > 0) {
-                receiptSent = await sendPaymentReceiptEmail(user.email, {
-                    name: user.name,
-                    recordLocator: order.recordLocator,
-                    transactionId,
-                    amountCents: totalAmount,
-                    cardBrand: cardBrand ?? undefined,
-                    cardLast4: cardLast4 ?? undefined,
-                    eventName: event.name,
-                });
+                receiptSent = await sendPaymentReceiptEmail(
+                    user.email,
+                    {
+                        name: user.name,
+                        recordLocator: order.recordLocator,
+                        transactionId,
+                        amountCents: totalAmount,
+                        cardBrand: cardBrand ?? undefined,
+                        cardLast4: cardLast4 ?? undefined,
+                        eventName: event.name
+                    }
+                );
             }
 
-            order.fulfillmentStatus = orderConfirmationSent && receiptSent
-                ? 'sent'
-                : orderConfirmationSent || receiptSent
-                    ? 'partial'
-                    : 'failed';
+            order.fulfillmentStatus =
+                orderConfirmationSent && receiptSent
+                    ? 'sent'
+                    : orderConfirmationSent || receiptSent
+                        ? 'partial'
+                        : 'failed';
 
             try {
                 await orderRepo.save(order);
             } catch (followupErr) {
-                console.error('Failed to persist fulfillment status', followupErr);
+                console.error(
+                    'Failed to persist fulfillment status',
+                    followupErr
+                );
             }
         }
 
@@ -681,14 +799,25 @@ app.post('/events/:id/checkout', async (req, res) => {
             couponCode: order.couponCode,
             discountAmountCents: order.discountAmountCents,
             totalAmountCents: order.totalAmountCents,
-            ticketIds: tickets.map(t => t.id),
+            ticketIds: tickets.map(t => t.id)
         });
     } catch (err: any) {
         console.error(err);
-        if (err.response?.status === 402 || err.response?.status === 502) {
-            return res.status(err.response.status).json(err.response?.data || { error: 'Payment failed' });
+
+        if (
+            err.response?.status === 402 ||
+            err.response?.status === 502
+        ) {
+            return res.status(err.response.status).json(
+                err.response?.data || {
+                    error: 'Payment failed'
+                }
+            );
         }
-        res.status(500).json({ error: 'Failed to complete checkout' });
+
+        res.status(500).json({
+            error: 'Failed to complete checkout'
+        });
     }
 });
 
