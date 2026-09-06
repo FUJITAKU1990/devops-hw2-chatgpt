@@ -488,18 +488,35 @@ app.post('/events/:id/checkout', async (req, res) => {
                 gaTickets
             );
 
-            const newTickets: Ticket[] = [];
-
-            for (const [, qty] of Object.entries(gaTickets!)) {
-                for (let i = 0; i < qty; i++) {
-                    newTickets.push(ticketRepo.create({
-                        eventId,
-                        userId,
-                        seatNumber: null as any,
-                        status: 'reserved'
-                    }));
+                const ticketTypeRepo = AppDataSource.getRepository(TicketType);
+                for (const [ticketTypeId, qty] of Object.entries(gaTickets!)) {
+                    const ticketType = await ticketTypeRepo.findOne({
+                        where: {
+                            id: Number(ticketTypeId),
+                            eventId,
+                        },
+                    });
+                    if (!ticketType) {
+                        return res.status(400).json({ error: 'Invalid ticket type' });
+                    }
+                    if (ticketType.maxPerOrder > 0 && qty > ticketType.maxPerOrder) {
+                        return res.status(400).json({
+                            error: `Maximum ${ticketType.maxPerOrder} tickets allowed per order`,
+                        });
+                    }
                 }
-            }
+                const newTickets: Ticket[] = [];
+
+                for (const [, qty] of Object.entries(gaTickets!)) {
+                    for (let i = 0; i < qty; i++) {
+                        newTickets.push(ticketRepo.create({
+                            eventId,
+                            userId,
+                            seatNumber: null as any,
+                            status: 'reserved'
+                        }));
+                    }
+                }
 
             tickets = await ticketRepo.save(newTickets);
         } else {
