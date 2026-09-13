@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages
+        run: |
+          npm run build:database
+          npm run build:mail
+
+      - name: Type-check services (no build script; ts-node runs raw TS)
+        run: |
+          npx tsc --noEmit -p services/api-gateway/tsconfig.json
+          npx tsc --noEmit -p services/auth-service/tsconfig.json
+          npx tsc --noEmit -p services/ticket-service/tsconfig.json
+
+      - name: Build frontend
+        run: npm run build -w frontend
+
+      - name: Validate Compose config
+        run: docker compose config -q
+
+      - name: Prepare env
+        run: cp -n .env.example .env
+
+      - name: Start application stack
+        run: docker compose up --build -d
+
+      - name: Wait for application readiness
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8636/api/events > /dev/null; then
+              echo "App is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App did not become ready in time"
+          docker compose ps
+          docker compose logs --tail=200
+          exit 1
+
+      - name: Run ./scripts/check
+        env:
+          TARTAN_BASE_URL: http://localhost:8636
+        run: ./scripts/check
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --tail=500
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
