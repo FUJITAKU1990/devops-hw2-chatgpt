@@ -457,6 +457,7 @@ app.post('/events/:id/checkout', async (req, res) => {
         const {
             seatIds,
             tickets: gaTickets,
+            totalPriceCents,
             couponCode,
             cardNumber,
             cardExpMonth,
@@ -601,10 +602,11 @@ app.post('/events/:id/checkout', async (req, res) => {
             };
         }
 
-        // The server-calculated subtotal is authoritative.
-        // Client-supplied totalPriceCents is intentionally ignored.
+        // HW2-unsafe regression: re-trusts client-supplied totalPriceCents.
         const authoritativeSubtotalCents =
-            authoritativeCartSummary.subtotalCents;
+            typeof totalPriceCents === 'number'
+                ? totalPriceCents
+                : authoritativeCartSummary.subtotalCents;
 
         const normalizedCouponCode = normalizeCouponCode(couponCode);
         let appliedCoupon: CouponCode | null = null;
