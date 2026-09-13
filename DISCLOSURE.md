@@ -19,3 +19,13 @@ For the checkout-pricing defect, I fixed the server to use the authoritative tic
 I used ChatGPT mainly to review the relevant code paths, challenge my proposed fixes, and check the regression-test coverage. I made the final implementation and testing decisions myself.
 
 I developed the fixes in three independent branches and submitted separate pull requests for each approved issue. After merging them, I resolved the merge conflicts, rebuilt the services, and personally ran `./scripts/check` on the final `main` branch. All 12 automated tests passed.
+
+## HW2-A
+
+For HW2-A, I used ChatGPT as a review and analysis assistant, while I made the high-level design decisions and all final judgments myself.
+
+For the CI design, I first determined the overall structure based on principles covered in class. I decided to run inexpensive checks first, defer heavier processing to later stages, and separate type-checking to improve performance. After drafting the initial workflow, I asked ChatGPT to review the job dependencies and the details of the .yml configuration. I incorporated its feedback to refine job ordering and conditional execution, and I finalized the CI design myself.
+
+For the hw2-safe and hw2-unsafe test suites, I chose to base the testing approach on the work from HW1. I decided to focus on areas that are critical to the service's correctness. ChatGPT proposed several concrete test cases, including boundary tests for minimum quantities and regression tests for client-side price tampering. I evaluated these suggestions and selected the ones I considered appropriate. All decisions about which tests to include or remove were made by me.
+
+During development, ChatGPT helped identify that the hw2-unsafe branch had been created from an outdated commit. Merging it as-is would have caused inconsistencies with the current CI and test configuration. To avoid this, I recreated the branch from the latest main and reapplied the necessary changes. This ensured that the work remained aligned with the updated project structure.
