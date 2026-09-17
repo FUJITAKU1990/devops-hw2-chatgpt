@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 const BASE = process.env.TARTAN_BASE_URL || 'http://localhost:8636';
+const STUDENT_PASSWORD = process.env.STUDENT_FIXTURE_PASSWORD;
 
 describe('HW1B regression: GA maxPerOrder', () => {
   it('rejects a General Admission checkout above maxPerOrder', async () => {
@@ -11,7 +12,7 @@ describe('HW1B regression: GA maxPerOrder', () => {
       },
       body: JSON.stringify({
         email: 'student@cmu.edu',
-        password: 'student',
+        password: STUDENT_PASSWORD,
       }),
     });
 
@@ -61,7 +62,7 @@ describe('HW1B regression: GA maxPerOrder', () => {
       },
       body: JSON.stringify({
         email: 'student@cmu.edu',
-        password: 'student',
+        password: STUDENT_PASSWORD,
       }),
     });
 

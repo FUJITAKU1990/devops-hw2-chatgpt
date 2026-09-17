@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 const BASE = process.env.TARTAN_BASE_URL || 'http://localhost:8636';
+const STUDENT_PASSWORD = process.env.STUDENT_FIXTURE_PASSWORD;
 
 describe('HW1B authoritative checkout pricing', () => {
   it('does not trust a client-supplied total below the reserved ticket price', async () => {
@@ -12,7 +13,7 @@ describe('HW1B authoritative checkout pricing', () => {
       },
       body: JSON.stringify({
         email: 'student@cmu.edu',
-        password: 'student',
+        password: STUDENT_PASSWORD,
       }),
     });
 

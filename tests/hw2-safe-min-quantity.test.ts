@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 const BASE = process.env.TARTAN_BASE_URL || 'http://localhost:8636';
+const STUDENT_PASSWORD = process.env.STUDENT_FIXTURE_PASSWORD;
 
 describe('HW2 safe exercise: GA minimum quantity', () => {
   it('allows a General Admission checkout for exactly 1 ticket', async () => {
@@ -11,7 +12,7 @@ describe('HW2 safe exercise: GA minimum quantity', () => {
       },
       body: JSON.stringify({
         email: 'student@cmu.edu',
-        password: 'student',
+        password: STUDENT_PASSWORD,
       }),
     });
 
