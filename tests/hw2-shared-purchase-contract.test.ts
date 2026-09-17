@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 const BASE = process.env.TARTAN_BASE_URL || 'http://localhost:8636';
-const MAILPIT_AUTH = 'Basic ' + Buffer.from('admin:admin').toString('base64');
+const MAILPIT_AUTH = 'Basic ' + Buffer.from(process.env.MP_UI_AUTH || 'admin:admin').toString('base64');
 
 const ADMIN_EMAIL = process.env.TARTAN_ADMIN_EMAIL || 'admin@cmu.edu';
 const ADMIN_PASSWORD = process.env.TARTAN_ADMIN_PASSWORD || 'admin';
