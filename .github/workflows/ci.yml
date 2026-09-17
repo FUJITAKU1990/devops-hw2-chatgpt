@@ -43,11 +43,19 @@ jobs:
       - name: Build frontend
         run: npm run build -w frontend
 
+      - name: Prepare env
+        run: |
+          cp -n .env.example .env
+          sed -i "s|^POSTGRES_PASSWORD=$|POSTGRES_PASSWORD=$(openssl rand -hex 16)|" .env
+          sed -i "s|^JWT_SECRET=$|JWT_SECRET=$(openssl rand -hex 32)|" .env
+          sed -i "s|^PAYMENT_DB_PASSWORD=$|PAYMENT_DB_PASSWORD=$(openssl rand -hex 16)|" .env
+          sed -i "s|^TARTANPAY_API_KEY=$|TARTANPAY_API_KEY=tp_sk_ci_$(openssl rand -hex 16)|" .env
+          sed -i "s|^TARTANPAY_ADMIN_TOKEN=$|TARTANPAY_ADMIN_TOKEN=tp_admin_ci_$(openssl rand -hex 16)|" .env
+          sed -i "s|^TARTAN_ADMIN_PASSWORD=$|TARTAN_ADMIN_PASSWORD=$(openssl rand -hex 12)|" .env
+          sed -i "s|^MP_UI_AUTH=$|MP_UI_AUTH=admin:$(openssl rand -hex 12)|" .env
+          
       - name: Validate Compose config
         run: docker compose config -q
-
-      - name: Prepare env
-        run: cp -n .env.example .env
 
       - name: Start application stack
         run: docker compose up --build -d
@@ -69,7 +77,11 @@ jobs:
       - name: Run ./scripts/check
         env:
           TARTAN_BASE_URL: http://localhost:8636
-        run: ./scripts/check
+        run: |
+          set -a
+          source .env
+          set +a
+          ./scripts/check
 
       - name: Dump logs on failure
         if: failure()
