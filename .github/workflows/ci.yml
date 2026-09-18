@@ -151,3 +151,15 @@ jobs:
   
       - name: Run secret guardrails check
         run: ./scripts/check-secret-guardrails
+
+  ci-integrity-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run CI integrity check
+        run: ./scripts/check-ci-integrity
