@@ -53,6 +53,7 @@ jobs:
           sed -i "s|^TARTANPAY_ADMIN_TOKEN=$|TARTANPAY_ADMIN_TOKEN=tp_admin_ci_$(openssl rand -hex 16)|" .env
           sed -i "s|^TARTAN_ADMIN_PASSWORD=$|TARTAN_ADMIN_PASSWORD=$(openssl rand -hex 12)|" .env
           sed -i "s|^MP_UI_AUTH=$|MP_UI_AUTH=admin:$(openssl rand -hex 12)|" .env
+          sed -i "s|^STUDENT_FIXTURE_PASSWORD=$|STUDENT_FIXTURE_PASSWORD=$(openssl rand -hex 12)|" .env
           
       - name: Validate Compose config
         run: docker compose config -q

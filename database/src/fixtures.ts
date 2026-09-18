@@ -7,12 +7,16 @@ import { SeatMap } from "./entities/SeatMap";
 import { CouponCode } from "./entities/CouponCode";
 
 async function seedFixtureUsers(): Promise<void> {
+    const studentFixturePassword = process.env.STUDENT_FIXTURE_PASSWORD;
+    if (!studentFixturePassword) {
+        throw new Error("STUDENT_FIXTURE_PASSWORD must be set");
+    }
     const userRepo = AppDataSource.getRepository(User);
     const fixtureUsers = [
         {
             name: "Student",
             email: "student@cmu.edu",
-            passwordHash: bcrypt.hashSync("student", 10),
+            passwordHash: bcrypt.hashSync(studentFixturePassword, 10),
             role: "student",
         },
         {
