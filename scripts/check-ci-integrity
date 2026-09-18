@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+FILE=".github/workflows/ci.yml"
+FAIL=0
+
+if grep -qE 'continue-on-error:\s*true' "$FILE"; then
+  echo "FAIL: continue-on-error: true found in ${FILE}"
+  FAIL=1
+fi
+
+if grep -qE '\|\|\s*true' "$FILE"; then
+  echo "FAIL: '|| true' failure-hiding pattern found in ${FILE}"
+  FAIL=1
+fi
+
+if grep -qE '(^|\s)set \+e(\s|$)' "$FILE"; then
+  echo "FAIL: 'set +e' found in ${FILE} (disables fail-fast)"
+  FAIL=1
+fi
+
+if grep -qE '^\s*ref:\s*[\x27"]?[0-9a-f]{7,40}[\x27"]?' "$FILE"; then
+  echo "FAIL: checkout step pins a fixed commit SHA in ${FILE}"
+  FAIL=1
+fi
+
+exit $FAIL
