@@ -1,26 +1,92 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FILE=".github/workflows/ci.yml"
+CI_FILE=".github/workflows/ci.yml"
+GUARDRAILS_FILE="scripts/check-secret-guardrails"
+GITLEAKS_CONFIG=".gitleaks.toml"
 FAIL=0
 
-if grep -qE 'continue-on-error:\s*true' "$FILE"; then
-  echo "FAIL: continue-on-error: true found in ${FILE}"
+# --- ci.yml: existing failure-hiding patterns ---
+
+if grep -qE 'continue-on-error:\s*true' "$CI_FILE"; then
+  echo "FAIL: continue-on-error: true found in ${CI_FILE}"
   FAIL=1
 fi
 
-if grep -qE '\|\|\s*true' "$FILE"; then
-  echo "FAIL: '|| true' failure-hiding pattern found in ${FILE}"
+if grep -qE '\|\|\s*true' "$CI_FILE"; then
+  echo "FAIL: '|| true' failure-hiding pattern found in ${CI_FILE}"
   FAIL=1
 fi
 
-if grep -qE '(^|\s)set \+e(\s|$)' "$FILE"; then
-  echo "FAIL: 'set +e' found in ${FILE} (disables fail-fast)"
+if grep -qE '(^|\s)set \+e(\s|$)' "$CI_FILE"; then
+  echo "FAIL: 'set +e' found in ${CI_FILE} (disables fail-fast)"
   FAIL=1
 fi
 
-if grep -qE '^\s*ref:\s*[\x27"]?[0-9a-f]{7,40}[\x27"]?' "$FILE"; then
-  echo "FAIL: checkout step pins a fixed commit SHA in ${FILE}"
+# --- ci.yml: checking out something other than the revision under test ---
+# Any explicit `ref:` key (not just one that looks like a hex SHA) can pin the
+# checkout to a fixed branch/tag/commit instead of the PR's actual head, which
+# is exactly "checking another revision". No step in this workflow legitimately
+# needs one, so any occurrence is treated as a regression.
+if grep -qE '^\s*ref:\s*\S+' "$CI_FILE"; then
+  echo "FAIL: an explicit 'ref:' was found in ${CI_FILE} (checkout would test a fixed revision instead of the actual one)"
+  FAIL=1
+fi
+
+# --- ci.yml: secrets-scan must still actually fail the build on a hit ---
+if grep -q 'gitleaks detect' "$CI_FILE"; then
+  if ! grep -qE 'gitleaks detect' "$CI_FILE" || ! grep -q -- '--exit-code 1' "$CI_FILE"; then
+    echo "FAIL: gitleaks invocation in ${CI_FILE} is missing --exit-code 1 (a detected secret would no longer fail the job)"
+    FAIL=1
+  fi
+else
+  echo "FAIL: gitleaks invocation not found in ${CI_FILE} (secrets-scan job appears to have been removed or rewritten)"
+  FAIL=1
+fi
+
+# --- ci.yml: every job must still declare a timeout ---
+JOB_COUNT=$(awk '/^jobs:/{f=1;next} f' "$CI_FILE" | grep -cE '^\s{2}[a-zA-Z0-9_-]+:\s*$' || true)
+TIMEOUT_COUNT=$(grep -cE 'timeout-minutes:' "$CI_FILE" || true)
+if [ "$TIMEOUT_COUNT" -lt "$JOB_COUNT" ]; then
+  echo "FAIL: found ${JOB_COUNT} job(s) but only ${TIMEOUT_COUNT} timeout-minutes declaration(s) in ${CI_FILE}"
+  FAIL=1
+fi
+
+# --- .gitleaks.toml: allowlist must not have grown overly broad ---
+# A regex like '.*' or '.+' in an allowlist entry would silently exempt any
+# future secret from detection, defeating the secrets-scan job entirely.
+if [ -f "$GITLEAKS_CONFIG" ]; then
+  if grep -qE '\.\*|\.\+|\[\\s\\S\]\*' "$GITLEAKS_CONFIG"; then
+    echo "FAIL: ${GITLEAKS_CONFIG} contains an overly broad allowlist regex (.*, .+ or similar)"
+    FAIL=1
+  fi
+  if grep -qE 'useDefault\s*=\s*false' "$GITLEAKS_CONFIG"; then
+    echo "FAIL: ${GITLEAKS_CONFIG} disables gitleaks' default rule set (useDefault = false)"
+    FAIL=1
+  fi
+else
+  echo "FAIL: ${GITLEAKS_CONFIG} not found (secrets-scan would lose its allowlist and default rules)"
+  FAIL=1
+fi
+
+# --- cross-check: guardrails-check's own detector must still be intact ---
+# ci-integrity-check and check-secret-guardrails verify each other's critical
+# content, so weakening one alone (by accident or otherwise) is still caught
+# by the other job.
+if [ -f "$GUARDRAILS_FILE" ]; then
+  for VAR in POSTGRES_PASSWORD JWT_SECRET PAYMENT_DB_PASSWORD TARTANPAY_API_KEY \
+             TARTANPAY_ADMIN_TOKEN TARTAN_ADMIN_PASSWORD MP_UI_AUTH STUDENT_FIXTURE_PASSWORD; do
+    if ! grep -q "$VAR" "$GUARDRAILS_FILE"; then
+      echo "FAIL: ${GUARDRAILS_FILE} no longer checks ${VAR}"
+      FAIL=1
+    fi
+  done
+  if ! grep -q 'TARTANPAY_LOG_SECRETS' "$GUARDRAILS_FILE"; then
+    echo "FAIL: ${GUARDRAILS_FILE} no longer checks TARTANPAY_LOG_SECRETS"
+    FAIL=1
+  fi
+else
+  echo "FAIL: ${GUARDRAILS_FILE} not found"
   FAIL=1
 fi
 
