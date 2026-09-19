@@ -24,7 +24,7 @@
 		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
 	},
 
-	"postCreateCommand": "cp -n .env.example .env 2>/dev/null || true && mkdir -p ~/.docker && echo '{}' > ~/.docker/config.json && npm install",
+	"postCreateCommand": "cp -n .env.example .env 2>/dev/null || true && ./scripts/generate-env-secrets .env && mkdir -p ~/.docker && echo '{}' > ~/.docker/config.json && npm install",
 
 	"customizations": {
         "vscode": {
