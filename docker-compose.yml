@@ -29,6 +29,10 @@ services:
     build:
       context: .
       dockerfile: ./services/auth-service/Dockerfile
+    # Same image as auth-service below: giving both the same tag makes
+    # `docker compose build` build this Dockerfile once and reuse it for
+    # both services, instead of building the identical image twice.
+    image: tartan-auth-service:local
     command: sh -c "cd ../../database && npm run migration:run && npm run seed:all"
     restart: "no"
     depends_on:
@@ -74,6 +78,7 @@ services:
     build:
       context: .
       dockerfile: ./services/auth-service/Dockerfile
+    image: tartan-auth-service:local
     environment:
       PORT: 3001
       DATABASE_URL: postgres://${POSTGRES_USER:-tartan}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-tartantickets}
