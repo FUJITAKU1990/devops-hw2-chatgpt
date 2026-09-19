@@ -11,6 +11,14 @@ async function seedFixtureUsers(): Promise<void> {
     if (!studentFixturePassword) {
         throw new Error("STUDENT_FIXTURE_PASSWORD must be set");
     }
+    const releaseOperatorPassword = process.env.RELEASE_OPERATOR_PASSWORD;
+    if (!releaseOperatorPassword) {
+        throw new Error("RELEASE_OPERATOR_PASSWORD must be set");
+    }
+    const supportAgentPassword = process.env.SUPPORT_AGENT_PASSWORD;
+    if (!supportAgentPassword) {
+        throw new Error("SUPPORT_AGENT_PASSWORD must be set");
+    }
     const userRepo = AppDataSource.getRepository(User);
     const fixtureUsers = [
         {
@@ -22,13 +30,13 @@ async function seedFixtureUsers(): Promise<void> {
         {
             name: "Release Operator",
             email: "release-operator@tartantickets.local",
-            passwordHash: "$2a$10$XArqK0m5SS7h3WeFGUlh7.ZjQzeftI2do2QirbM2CIqoQGTlp0z6a",
+            passwordHash: bcrypt.hashSync(releaseOperatorPassword, 10),
             role: "admin",
         },
         {
             name: "Support Agent",
             email: "support-agent@tartantickets.local",
-            passwordHash: "$2a$10$o2QVNXpgIP7DjJc3Bdzc9OjnIGSBZ0Z4d5mbEfmxAqDAeN6bPxqQe",
+            passwordHash: bcrypt.hashSync(supportAgentPassword, 10),
             role: "student",
         },
     ];
