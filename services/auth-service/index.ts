@@ -12,7 +12,10 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const SECRET_KEY = process.env.JWT_SECRET || 'tartan-f26-dev-signing-key';
+if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET must be set');
+}
+const SECRET_KEY = process.env.JWT_SECRET;
 const ACTIVATION_TOKEN_TTL_MS = 1000 * 60 * 60 * 24;
 
 function getAppUrl(): string {
