@@ -26,23 +26,6 @@ jobs:
           cache: npm
           cache-dependency-path: '**/package-lock.json'
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build shared packages
-        run: |
-          npm run build:database
-          npm run build:mail
-
-      - name: Type-check services (no build script; ts-node runs raw TS)
-        run: |
-          npx tsc --noEmit -p services/api-gateway/tsconfig.json
-          npx tsc --noEmit -p services/auth-service/tsconfig.json
-          npx tsc --noEmit -p services/ticket-service/tsconfig.json
-
-      - name: Build frontend
-        run: npm run build -w frontend
-
       - name: Prepare env
         run: |
           cp -n .env.example .env
@@ -51,8 +34,43 @@ jobs:
       - name: Validate Compose config
         run: docker compose config -q
 
+      # Docker image builds and the host-side install/build/type-check chain
+      # are independent of each other (each Dockerfile installs its own
+      # dependencies inside its build context), so run them concurrently
+      # instead of paying for both in sequence. `docker compose build` alone
+      # was consistently the single largest cost in this job (~80s of a
+      # ~155s total), so overlapping it with everything else is the highest-
+      # value speed-up available without weakening any check. Every
+      # concurrent step's exit status is checked explicitly (relying on
+      # `set -e` alone does not catch a failure in a backgrounded command).
+      - name: Build Docker images and application concurrently
+        run: |
+          docker compose build &
+          BUILD_PID=$!
+
+          npm ci
+          npm run build:database
+          npm run build:mail
+
+          npx tsc --noEmit -p services/api-gateway/tsconfig.json &
+          TC_GATEWAY=$!
+          npx tsc --noEmit -p services/auth-service/tsconfig.json &
+          TC_AUTH=$!
+          npx tsc --noEmit -p services/ticket-service/tsconfig.json &
+          TC_TICKET=$!
+          npm run build -w frontend &
+          FRONTEND=$!
+
+          FAIL=0
+          wait "$TC_GATEWAY" || { echo "FAIL: api-gateway type-check"; FAIL=1; }
+          wait "$TC_AUTH" || { echo "FAIL: auth-service type-check"; FAIL=1; }
+          wait "$TC_TICKET" || { echo "FAIL: ticket-service type-check"; FAIL=1; }
+          wait "$FRONTEND" || { echo "FAIL: frontend build"; FAIL=1; }
+          wait "$BUILD_PID" || { echo "FAIL: docker compose build"; FAIL=1; }
+          exit "$FAIL"
+
       - name: Start application stack
-        run: docker compose up --build -d
+        run: docker compose up -d
 
       - name: Wait for application readiness
         run: |
