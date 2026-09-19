@@ -26,7 +26,10 @@ const PAYMENT_SERVICE_URL = process.env.PAYMENT_SERVICE_URL || 'http://payment-s
 app.use(express.json({ limit: '10mb' }));
 app.use(cors());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'tartan-f26-dev-signing-key';
+if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET must be set');
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Helper to extract user from Authorization header
 const getUserIdFromAuth = (req: express.Request): number | null => {
@@ -441,7 +444,10 @@ app.post('/events/:id/coupons/preview', async (req, res) => {
 });
 
 // Checkout: convert reserved tickets to booked and process payment via TartanPay
-const TARTANPAY_API_KEY = process.env.TARTANPAY_API_KEY || '';
+if (!process.env.TARTANPAY_API_KEY) {
+    throw new Error('TARTANPAY_API_KEY must be set');
+}
+const TARTANPAY_API_KEY = process.env.TARTANPAY_API_KEY;
 const tartanPayHeaders = () => ({
     headers: { Authorization: `Bearer ${TARTANPAY_API_KEY}`, 'Content-Type': 'application/json' },
 });

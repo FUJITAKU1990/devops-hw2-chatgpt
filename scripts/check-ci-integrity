@@ -28,7 +28,11 @@ fi
 # checkout to a fixed branch/tag/commit instead of the PR's actual head, which
 # is exactly "checking another revision". No step in this workflow legitimately
 # needs one, so any occurrence is treated as a regression.
-if grep -qE '^\s*ref:\s*\S+' "$CI_FILE"; then
+# Matched without a line-start anchor so YAML flow-mapping style (e.g.
+# `with: { ref: 'deadbeef' }` or `with: {fetch-depth: 0, ref: main}`) is still
+# caught; the character before `ref:` is required to be non-alphanumeric (or
+# start-of-line) so words like `preference:` don't false-positive.
+if grep -qE '(^|[^A-Za-z0-9_])ref:[[:space:]]*\S+' "$CI_FILE"; then
   echo "FAIL: an explicit 'ref:' was found in ${CI_FILE} (checkout would test a fixed revision instead of the actual one)"
   FAIL=1
 fi
@@ -45,7 +49,17 @@ else
 fi
 
 # --- ci.yml: every job must still declare a timeout ---
-JOB_COUNT=$(awk '/^jobs:/{f=1;next} f' "$CI_FILE" | grep -cE '^\s{2}[a-zA-Z0-9_-]+:\s*$' || true)
+# Job keys are counted at whatever indentation the first job under `jobs:`
+# uses, rather than a hardcoded 2 spaces, so re-indenting the file can't be
+# used to hide a newly added job (and its missing timeout) from this count.
+FIRST_JOB_INDENT=$(awk '/^jobs:/{f=1;next} f && /^[ ]+[a-zA-Z0-9_-]+:[ ]*$/{match($0,/^[ ]*/); print RLENGTH; exit}' "$CI_FILE")
+if [ -z "$FIRST_JOB_INDENT" ]; then
+  echo "FAIL: could not find any job under 'jobs:' in ${CI_FILE}"
+  FAIL=1
+  JOB_COUNT=0
+else
+  JOB_COUNT=$(awk '/^jobs:/{f=1;next} f' "$CI_FILE" | grep -cE "^[ ]{${FIRST_JOB_INDENT}}[a-zA-Z0-9_-]+:[ ]*\$" || true)
+fi
 TIMEOUT_COUNT=$(grep -cE 'timeout-minutes:' "$CI_FILE" || true)
 if [ "$TIMEOUT_COUNT" -lt "$JOB_COUNT" ]; then
   echo "FAIL: found ${JOB_COUNT} job(s) but only ${TIMEOUT_COUNT} timeout-minutes declaration(s) in ${CI_FILE}"
@@ -75,7 +89,8 @@ fi
 # by the other job.
 if [ -f "$GUARDRAILS_FILE" ]; then
   for VAR in POSTGRES_PASSWORD JWT_SECRET PAYMENT_DB_PASSWORD TARTANPAY_API_KEY \
-             TARTANPAY_ADMIN_TOKEN TARTAN_ADMIN_PASSWORD MP_UI_AUTH STUDENT_FIXTURE_PASSWORD; do
+             TARTANPAY_ADMIN_TOKEN TARTAN_ADMIN_PASSWORD MP_UI_AUTH STUDENT_FIXTURE_PASSWORD \
+             RELEASE_OPERATOR_PASSWORD SUPPORT_AGENT_PASSWORD; do
     if ! grep -q "$VAR" "$GUARDRAILS_FILE"; then
       echo "FAIL: ${GUARDRAILS_FILE} no longer checks ${VAR}"
       FAIL=1
