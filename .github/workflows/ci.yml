@@ -15,6 +15,8 @@ jobs:
   ci:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,8 +47,8 @@ jobs:
       # `set -e` alone does not catch a failure in a backgrounded command).
       - name: Build Docker images and application concurrently
         run: |
-          docker compose build &
-          BUILD_PID=$!
+          docker build -f docker/base.Dockerfile -t tartan-base:local . &
+          BASE_PID=$!
 
           npm ci
           npm run build:database
@@ -62,11 +64,21 @@ jobs:
           FRONTEND=$!
 
           FAIL=0
+          wait "$BASE_PID" || { echo "FAIL: base image build"; FAIL=1; }
+
+          BUILD_PID=""
+          if [ "$FAIL" -eq 0 ]; then
+            docker compose build &
+            BUILD_PID=$!
+          fi
+
           wait "$TC_GATEWAY" || { echo "FAIL: api-gateway type-check"; FAIL=1; }
           wait "$TC_AUTH" || { echo "FAIL: auth-service type-check"; FAIL=1; }
           wait "$TC_TICKET" || { echo "FAIL: ticket-service type-check"; FAIL=1; }
           wait "$FRONTEND" || { echo "FAIL: frontend build"; FAIL=1; }
-          wait "$BUILD_PID" || { echo "FAIL: docker compose build"; FAIL=1; }
+          if [ -n "$BUILD_PID" ]; then
+            wait "$BUILD_PID" || { echo "FAIL: docker compose build"; FAIL=1; }
+          fi
           exit "$FAIL"
 
       - name: Start application stack
@@ -174,3 +186,15 @@ jobs:
 
       - name: Run CI integrity check
         run: ./scripts/check-ci-integrity
+
+  bonus-hardening-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run bonus hardening check
+        run: ./scripts/check-bonus-hardening

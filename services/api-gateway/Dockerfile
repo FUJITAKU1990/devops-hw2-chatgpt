@@ -9,4 +9,7 @@ RUN npm ci --no-audit --maxsockets=1
 
 COPY services/api-gateway/ .
 
+RUN chown -R node:node /app
+USER node
+
 CMD ["npm", "start"]

@@ -516,6 +516,11 @@ app.post('/events/:id/checkout', async (req, res) => {
                     if (!ticketType) {
                         return res.status(400).json({ error: 'Invalid ticket type' });
                     }
+                    if (!Number.isInteger(qty) || qty <= 0) {
+                        return res.status(400).json({
+                            error: 'Ticket quantity must be a positive integer',
+                        });
+                    }
                     if (ticketType.maxPerOrder > 0 && qty > ticketType.maxPerOrder) {
                         return res.status(400).json({
                             error: `Maximum ${ticketType.maxPerOrder} tickets allowed per order`,

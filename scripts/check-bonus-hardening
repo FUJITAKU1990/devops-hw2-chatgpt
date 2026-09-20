@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+FAIL=0
+CI_FILE=".github/workflows/ci.yml"
+
+# Bonus #1: service containers must not run as root
+for DOCKERFILE in services/auth-service/Dockerfile services/ticket-service/Dockerfile services/api-gateway/Dockerfile; do
+  if ! grep -qE '^\s*USER\s+\S+' "$DOCKERFILE"; then
+    echo "FAIL: ${DOCKERFILE} does not switch to a non-root USER"
+    FAIL=1
+  fi
+done
+
+# Bonus #2: every CI job must declare least-privilege permissions
+FIRST_JOB_INDENT=$(awk '/^jobs:/{f=1;next} f && /^[ ]+[a-zA-Z0-9_-]+:[ ]*$/{match($0,/^[ ]*/); print RLENGTH; exit}' "$CI_FILE")
+JOB_COUNT=$(awk '/^jobs:/{f=1;next} f' "$CI_FILE" | grep -cE "^[ ]{${FIRST_JOB_INDENT}}[a-zA-Z0-9_-]+:[ ]*\$" || true)
+PERMISSIONS_COUNT=$(grep -cE '^\s*permissions:' "$CI_FILE" || true)
+if [ "$PERMISSIONS_COUNT" -lt "$JOB_COUNT" ]; then
+  echo "FAIL: found ${JOB_COUNT} job(s) but only ${PERMISSIONS_COUNT} 'permissions:' declaration(s) in ${CI_FILE}"
+  FAIL=1
+fi
+
+# Bonus #3: .env must stay excluded via .gitignore
+if ! grep -qE '^\.env$' .gitignore; then
+  echo "FAIL: .gitignore no longer excludes .env"
+  FAIL=1
+fi
+
+exit $FAIL
