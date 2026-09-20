@@ -284,6 +284,9 @@ app.get('/events/:id', async (req, res) => {
 app.get('/events/:id/seats', async (req, res) => {
     try {
         const eventId = parseInt(req.params.id);
+        if (!Number.isInteger(eventId)) {
+            return res.status(400).json({ error: 'Invalid event id' });
+        }
         const ticketRepo = AppDataSource.getRepository(Ticket);
 
         const tickets = await ticketRepo.find({
@@ -324,6 +327,9 @@ app.post('/events/:id/seats/:seat/reserve', async (req, res) => {
         }
 
         const eventId = parseInt(req.params.id);
+        if (!Number.isInteger(eventId)) {
+            return res.status(400).json({ error: 'Invalid event id' });
+        }
         const seatId = decodeURIComponent(req.params.seat);
 
         const ticketRepo = AppDataSource.getRepository(Ticket);
@@ -382,6 +388,9 @@ app.post('/events/:id/seats/:seat/release', async (req, res) => {
         }
 
         const eventId = parseInt(req.params.id);
+        if (!Number.isInteger(eventId)) {
+            return res.status(400).json({ error: 'Invalid event id' });
+        }
         const seatId = decodeURIComponent(req.params.seat);
 
         const ticketRepo = AppDataSource.getRepository(Ticket);
@@ -410,6 +419,9 @@ app.post('/events/:id/seats/:seat/release', async (req, res) => {
 app.post('/events/:id/coupons/preview', async (req, res) => {
     try {
         const eventId = parseInt(req.params.id);
+        if (!Number.isInteger(eventId)) {
+            return res.status(400).json({ error: 'Invalid event id' });
+        }
         if (!Number.isInteger(eventId)) {
             return res.status(400).json({ error: 'Invalid event id' });
         }
@@ -460,6 +472,9 @@ app.post('/events/:id/checkout', async (req, res) => {
         }
 
         const eventId = parseInt(req.params.id);
+        if (!Number.isInteger(eventId)) {
+            return res.status(400).json({ error: 'Invalid event id' });
+        }
         const {
             seatIds,
             tickets: gaTickets,
@@ -507,9 +522,13 @@ app.post('/events/:id/checkout', async (req, res) => {
 
                 const ticketTypeRepo = AppDataSource.getRepository(TicketType);
                 for (const [ticketTypeId, qty] of Object.entries(gaTickets!)) {
+                    const parsedTicketTypeId = Number(ticketTypeId);
+                    if (!Number.isInteger(parsedTicketTypeId)) {
+                        return res.status(400).json({ error: 'Invalid ticket type' });
+                    }
                     const ticketType = await ticketTypeRepo.findOne({
                         where: {
-                            id: Number(ticketTypeId),
+                            id: parsedTicketTypeId,
                             eventId,
                         },
                     });
@@ -1774,6 +1793,9 @@ app.post('/admin/orders/:id/cancel', requireAdmin, async (req, res) => {
 app.post('/admin/events/:id/ticket-types', requireAdmin, async (req, res) => {
     try {
         const eventId = parseInt(req.params.id);
+        if (!Number.isInteger(eventId)) {
+            return res.status(400).json({ error: 'Invalid event id' });
+        }
         const eventRepo = AppDataSource.getRepository(Event);
         const event = await eventRepo.findOneBy({ id: eventId });
         if (!event) return res.status(404).json({ error: 'Event not found' });
