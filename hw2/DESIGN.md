@@ -3,7 +3,7 @@
 ## Checks and enforcement
 
 - Implementation:
-  https://github.com/cmu-devops/17636-f26-tfujio/blob/9f0a2664bbca9821744b633baf0395151f51f2ff/.github/workflows/ci.yml
+  https://github.com/cmu-devops/17636-f26-tfujio/blob/main/.github/workflows/ci.yml
 
 - Design principle:
   Run inexpensive and fast checks first, followed by heavier checks that start and exercise the actual application. This detects problems early and avoids unnecessary Docker builds and E2E tests.
